@@ -1,0 +1,130 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+# Multiple Linear Regression Assignment - Mod 2
+
+## Khayrayyah Haamid-Day
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(tidymodels)
+library(glmnet)
+library(GGally)
+library(ggcorrplot)
+library(MASS)
+library(car)
+library(lubridate)
+library(lmtest)
+```
+
+```{r}
+bike <- read_csv("bike_cleaned.csv")
+bike = bike %>% mutate(dteday = mdy(dteday)) %>% 
+  mutate_if(is.character, as.factor) %>%
+  mutate(hr = as.factor(hr)) #Task 1
+
+ggcorr(bike, label = TRUE)
+ggpairs(bike, columns = c("instant", "dteday","temp", "atemp", "hum","windspeed","count"))
+
+summary(bike)
+
+```
+
+**Task 1 - Why do we convert the “hr” variable into factor? Why not just leave as numbers?**
+
+We would want to convert hr to a factor so we can use it to compare with other categorical data.
+
+**Task 2 - Which of the quantitative variables appears to be best correlated with “count” (ignore the “registered” and “casual” variable as the sum of these two variables equals “count”)?** 
+
+The variables atemp and temp appear to be best correlated with the variable count. 
+
+```{r}
+#Task 3
+ggplot(bike,aes(x=hr,y=count)) + geom_boxplot() + theme_bw()
+ggplot(bike,aes(x=season,y=count)) + geom_boxplot() + theme_bw()
+ggplot(bike,aes(x=mnth,y=count)) + geom_boxplot() + theme_bw()
+ggplot(bike,aes(x=holiday,y=count)) + geom_boxplot() + theme_bw()
+ggplot(bike,aes(x=weekday,y=count)) + geom_boxplot() + theme_bw()
+ggplot(bike,aes(x=workingday,y=count)) + geom_boxplot() + theme_bw()
+ggplot(bike,aes(x=weathersit,y=count)) + geom_boxplot() + theme_bw()
+```
+
+**Task 3 - Which variables appear to affect “count”? Provide a brief explanation as to why you believe that each variable does or does not affect “count” (use your intuition to help you answer this question).**
+
+* Season - This variable increases in count when the season is warmer and vastly decreases in winter when it would be a lot colder in DC as well as harder to bike with snowfall. 
+* Mnth - In months that are colder there are less people using the bike service in comparison to the warmer weather months. In particular, this service is used most during the hottest months of summer. 
+* Holiday - There is not too strong of a relationship between count and holiday. Usage of the bikes remains fairly similar whether its a holiday or not. This may be due to the fact that people are just as active outdoors whether its a holiday or not. 
+* Weekday - There is not a too strong of a relationship between count and weekday. People in DC use public transportation as a way to get around the city so they would still require the bikes no matter the day of the week.
+* Workingday - Just like holiday and weekday, this is not too strong of a relationship with count and this is most likely due to the continued need to get around town regardless of the day. 
+* Weathersit - There is a strong relationship with count, this makes sense as people are less likely to use a bike when it is raining outside. 
+
+```{r}
+bikemodel = recipe(count ~ mnth, bike) %>%
+  step_dummy(mnth)
+
+lm_model = #give the model type a name 
+  linear_reg() %>% #specify that we are doing linear regression
+  set_engine("lm") #specify the specify type of linear tool we want to use 
+
+lm_wflow = 
+  workflow() %>% 
+  add_model(lm_model) %>% 
+  add_recipe(bikemodel)
+
+lm_fit1 = fit(lm_wflow, bike)
+
+
+summary(lm_fit1$fit$fit$fit)
+```
+
+**Task 4**
+
+Though the R-Squared value is low, the p-values show that every variable except for November is significant. The negative coefficients show that as the month gets colder in DC, the amount of bikes being used decrease, while the opposite is true for the positive coefficients.  
+
+```{r}
+#Task 5
+bikemod = recipe(count ~., bike) %>%
+  step_rm(instant,dteday,registered,casual)
+
+all_model =  
+  linear_reg() %>% 
+  set_engine("lm")
+
+lm_wflow = 
+  workflow() %>% 
+  add_model(all_model) %>% 
+  add_recipe(bikemod)
+
+lm_fit2 = fit(lm_wflow, bike)
+
+summary(lm_fit2$fit$fit$fit)
+
+```
+
+**Task 5** 
+
+One example of multicollinearity in this summary are the month variables, that show warmer weather months have negative coefficients which indicate which is implying that the warmer the weather is the less bikes being used. Previous information contradicts this. After attempting to run the vif function, there is an error that suggests there are variables that are linearly dependent upon each other.  
+ 
+```{r}
+allPredict = recipe(count ~.,bike) %>%
+  step_rm(instant,dteday,registered,casual,windspeed,weekday,workingday,hum,weathersit,atemp,temp,season)
+
+all_predict =  
+  linear_reg() %>% 
+  set_engine("lm")
+
+lm_wflow = 
+  workflow() %>% 
+  add_model(all_predict) %>% 
+  add_recipe(allPredict)
+
+lm_fit3 = fit(lm_wflow, bike)
+summary(lm_fit3$fit$fit$fit)
+
+car::vif(lm_fit3$fit$fit$fit)
+```
+
+With this model there appears to be little multicollinearity, a moderate rsquared, and VIF of less than 4. I found that variables relating to the overall weather and season interacted with each other too much causing positive coefficients to become negative. With a bit of tweaking I found that the variable month, hr, and holiday do not interact with each other too strongly and positive coefficients remain so. There is only one variable in this model that is not as significant as the rest of the variables are.
+

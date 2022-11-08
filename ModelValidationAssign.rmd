@@ -1,0 +1,70 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+# BAN 502 - Model Validation Assignment
+
+## Khayrayyah Haamid-Day
+
+```{r message=TRUE, warning=TRUE, include=FALSE}
+library(tidyverse)
+library(lubridate)
+library(tidymodels)
+
+bike <- read_csv("bike_cleaned.csv")
+bike = bike %>% mutate(dteday = mdy(dteday)) %>% 
+  mutate_if(is.character, as.factor) %>%
+  mutate(hr = as.factor(hr)) 
+```
+
+**Task 1**
+
+```{r}
+set.seed(1234)
+bike_split = initial_split(bike, prop = 0.70, strata = count)
+train = training(bike_split)
+test = testing(bike_split)
+```
+
+**Task 2**
+
+There are 12,163 rows in training and 5,216 in testing.
+
+```{r}
+bike_recipe = recipe(count ~ season + mnth + hr + holiday + weekday + temp + weathersit, train) %>%
+  step_dummy(all_nominal_predictors())
+
+bike_model = #give the model type a name 
+  linear_reg() %>% #specify that we are doing linear regression
+  set_engine("lm") #specify the specify type of linear tool we want to use 
+
+lm_wflow = 
+  workflow() %>% 
+  add_model(bike_model) %>% 
+  add_recipe(bike_recipe)
+
+lm_fit = fit(lm_wflow, train)
+
+summary(lm_fit$fit$fit$fit)
+```
+This model has a good r-squared with several variables being significant though there are some variables that have a negative coefficient when they should be positive so there is some multicollinearity occuring. 
+
+**Task 4**
+
+```{r}
+predict_train = predict(lm_fit,train)
+head(predict_train)
+
+ggplot(predict_train,aes(.pred))+
+  geom_histogram()
+```
+There is a normal distribution in this histogram.
+
+**Task 5** 
+
+```{r}
+lm_fit %>% predict(test) %>% bind_cols(test) %>% metrics(truth = count, estimate = .pred)
+```
+
+The R-Squared value on the testing set is very close to the R-Squared from the training model.

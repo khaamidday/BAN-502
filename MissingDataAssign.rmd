@@ -1,0 +1,43 @@
+# BAN 502 - Missing Data Assignment Quiz
+
+```{r}
+library(tidyverse)
+library(VIM)
+library(mice)
+
+class_grades <- read_csv("class-grades.csv")
+summary(class_grades)
+```
+
+1. The variables Tutorial, Midterm, Takehome, and Final have NA's
+
+```{r}
+vim_plot = aggr(class_grades, numbers = TRUE, prop = c(TRUE, FALSE),cex.axis=.7)
+```
+
+2. Yes
+
+```{r}
+new_grades = class_grades %>% drop_na()
+```
+
+3. 89
+
+```{r}
+new_class = class_grades %>% select(-Tutorial,-Midterm,-TakeHome,-Final)
+```
+
+4. 2
+
+5. It would be wiser to do row deletion instead of column deletion. With row deletion you have more variables to work with that could report important information about this dataset. 
+
+```{r}
+set.seed(123)
+final_grades = mice(class_grades, m=5, method='pmm', printFlag=FALSE)
+summary(final_grades)
+
+grades_complete = complete(final_grades)
+summary(grades_complete)
+md.pattern(class_grades.final_grades)
+```
+

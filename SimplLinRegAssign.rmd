@@ -1,0 +1,83 @@
+# Simple Linear Regression Assignment Quiz
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+library(GGally)
+library(lmtest)
+library(esquisse)
+```
+
+```{r}
+air = airquality
+
+str(air)
+summary(air)
+ggpairs(air)
+```
+
+There are 6 variables and 153 observations and there is missing data. The Y variable is likely to be Ozone.
+
+```{r}
+air2 = drop_na(air)
+```
+
+This new data frame has 111 observations and 6 variables
+
+```{r}
+ggpairs(air2)
+ggcorr(air2,label = "TRUE")
+```
+
+The most strongly correlated with Ozone is Temp and the least correlated is Day
+
+```{r}
+ggplot(air2,aes(Temp,Ozone)) +
+  geom_point() +
+  geom_smooth(method = "lm",se=FALSE)
+
+esquisser()
+```
+
+This appears to be a linear relationship
+
+```{r}
+air2model = recipe(Ozone ~ Temp, air2)
+
+lm_model = #give the model type a name 
+  linear_reg() %>% #specify that we are doing linear regression
+  set_engine("lm") #specify the specify type of linear tool we want to use 
+
+lm_wflow = 
+  workflow() %>% 
+  add_model(lm_model) %>% 
+  add_recipe(air2model)
+
+lm_fit = fit(lm_wflow, air2)
+summary(lm_fit$fit$fit$fit)
+confint(lm_fit$fit$fit$fit)
+```
+
+a. The predictor variable is significant and the r-squared is okay
+
+b. Likely falls within 67.3 to 71.5??
+
+```{r}
+testdata = data.frame(Temp = c(80))
+predict(lm_fit, new_data = testdata)
+```
+
+```{r}
+dwtest(lm_fit$fit$fit$fit)
+
+air2 = air2 %>% mutate(resid1 = lm_fit$fit$fit$fit$residuals) #add the model residuals to our data frame
+ggplot(air2,aes(x=Temp,y=resid1)) + geom_point() + theme_bw()
+
+ggplot(air2,aes(x=resid1)) + geom_histogram() + theme_bw()
+```
+
+1. There is no evidence of non-independent residuals
+
+2. There isn't a linear relationship
+
+3.Data is not normally distributed and is skewed to the left

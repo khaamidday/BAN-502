@@ -1,0 +1,194 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+# BAN - 502 Logisitic Regression Classification
+
+## Khayrayyah Haamid-Day
+
+```{r include=FALSE}
+library(tidyverse)
+library(tidymodels)
+library(e1071)
+library(ROCR)
+
+parole <- read_csv("parole.csv")
+```
+
+```{r}
+#Task 1
+parole = parole %>% mutate(male = as_factor(male)) %>%
+  mutate(race = as_factor(race)) %>%
+  mutate(state = as_factor(state)) %>%
+  mutate(crime = as_factor(crime)) %>%
+  mutate(multiple.offenses = as_factor(multiple.offenses)) %>%
+  mutate(violator = as_factor(violator))
+
+parole = parole %>% mutate(male = fct_recode(male, "Male" = "1", "Female" = "0" )) %>%
+  mutate(race = fct_recode(race, "White" = "1", "Other" = "2")) %>%
+  mutate(state = fct_recode(state, "Kentucky" = "2", "Louisiana" = "3", "Virginia" = "4", "Other" = "1")) %>%
+  mutate(crime = fct_recode(crime, "Larceny" = "2", "Drug-Related" = "3", "Driving-Related" = "4", "Other" = "1")) %>%
+  mutate(multiple.offenses = fct_recode(multiple.offenses, "Yes" = "1", "No" = "0" )) %>%
+  mutate(violator = fct_recode(violator, "Yes" = "1", "No" = "2"))
+
+summary(parole)
+```
+
+```{r}
+#Task 2
+set.seed(12345)
+parole_split = initial_split(parole, prop = 0.70, strata = violator)
+train = training(parole_split)
+test = testing(parole_split)
+
+t2 = table(parole$violator,parole$male)
+prop.table(t2, margin = 2)
+t3 = table(parole$violator,parole$race)
+prop.table(t3, margin = 2)
+t4 = table(parole$violator,parole$state)
+prop.table(t4, margin = 2)
+t5 = table(parole$violator,parole$multiple.offenses)
+prop.table(t5, margin = 2)
+t6 = table(parole$violator,parole$crime)
+prop.table(t6, margin = 2)
+```
+It appears that a lot of these predictors would indicate that a parolee would not violate their parole if they were, for example, a white female in Virginia but may be more likely to violate their parole if they were in Louisiana instead. Other predictors like having committed multiple offenses and the crime committed being anything other than driving related may increase the likelihood of the parolee violating their parole. 
+
+```{r}
+parole_model = 
+  logistic_reg(mode = "classification") %>% #note the use of logistic_reg and mode = "classification"
+  set_engine("glm") #standard logistic regression engine is glm
+
+parole_recipe = recipe(violator ~ state, train) %>%
+   step_dummy(all_nominal(), -all_outcomes())
+
+logreg_wf = workflow() %>%
+  add_recipe(parole_recipe) %>% 
+  add_model(parole_model)
+
+parole_fit1 = fit(logreg_wf, train)
+
+summary(parole_fit1$fit$fit$fit)
+```
+
+This model looks pretty good, the AIC is low, p-values for Louisiana and Virginia are significant. The relationships I saw from the table are similar.
+
+```{r}
+#Task 4
+parole_model = 
+  logistic_reg(mode = "classification") %>% 
+  set_engine("glm")
+
+parole_recipe = recipe(violator ~ multiple.offenses, train) %>%
+   step_dummy(all_nominal(), -all_outcomes())
+
+logreg_wf = workflow() %>%
+  add_recipe(parole_recipe) %>% 
+  add_model(parole_model)
+
+parole_fit2 = fit(logreg_wf, train)
+
+parole_model = 
+  logistic_reg(mode = "classification") %>% 
+  set_engine("glm") 
+
+parole_recipe = recipe(violator ~ crime, train)
+
+logreg_wf = workflow() %>%
+  add_recipe(parole_recipe) %>% 
+  add_model(parole_model)
+
+parole_fit3 = fit(logreg_wf, train)
+
+summary(parole_fit2$fit$fit$fit)
+summary(parole_fit3$fit$fit$fit)
+```
+
+I chose to look at these two predictors as they had some probabilities that were similar to those found in the state predictor. Compared to the first model I created, the AIC is higher on these models and there is no significance for crime variables.There is small significance for multiple offenses. 
+
+```{r}
+#Task5
+parole_model = 
+  logistic_reg(mode = "classification") %>% 
+  set_engine("glm") 
+
+parole_recipe = recipe(violator ~ state + multiple.offenses + race, train) %>%
+   step_dummy(all_nominal(), -all_outcomes())
+
+logreg_wf = workflow() %>%
+  add_recipe(parole_recipe) %>% 
+  add_model(parole_model)
+
+parole_fit4 = fit(logreg_wf, train)
+
+summary(parole_fit4$fit$fit$fit)
+```
+
+The AIC on this model is the lowest compared to the others. The variables Virginia, multiple offenses, and race have significance. Louisiana does not have significance in this model. 
+
+```{r}
+#Task 6
+newdata = data.frame(state = "Louisiana", multiple.offenses = "Yes", race = "White")
+predictions = predict(parole_fit4, newdata, type="prob")[2]
+head(predictions)
+```
+
+```{r}
+#Task 6
+newdata = data.frame(state = "Kentucky", multiple.offenses = "No", race = "Other")
+predictions = predict(parole_fit4, newdata, type="prob")[2]
+head(predictions)
+```
+
+Parole 1 has a predicted probability of .33 of violating their parole while Parole 2 has a probability of .20 of violating their parole. 
+
+```{r}
+#Task 7
+predictions1 = predict(parole_fit4, train, type="prob")[2]
+
+ROCRpred = prediction(predictions1, train$violator) 
+
+ROCRperf = performance(ROCRpred, "tpr", "fpr")
+plot(ROCRperf, colorize=TRUE, print.cutoffs.at=seq(0,1,by=0.1), text.adj=c(-0.2,1.7))
+
+#Sensitivity and specificity 
+opt.cut = function(perf, pred){
+    cut.ind = mapply(FUN=function(x, y, p){
+        d = (x - 0)^2 + (y-1)^2
+        ind = which(d == min(d))
+        c(sensitivity = y[[ind]], specificity = 1-x[[ind]], 
+            cutoff = p[[ind]])
+    }, perf@x.values, perf@y.values, pred@cutoffs)
+}
+print(opt.cut(ROCRperf, ROCRpred))
+
+# Accuracy
+t1 = table(train$violator,predictions1 >  0.08627651)
+t1
+(t1[1,1]+t1[2,2])/nrow(train)
+```
+
+The accuracy is .82, the sensitivity is .72, the specificity is .83. The implication of incorrectly classifying a parolee is its impact on accuracy; for example, a high accuracy could have you believing that parolees are not likely to violate their parole when this may not be true in reality.
+
+```{r}
+#Task 9
+t1 = table(train$violator,predictions1 > 0.3)
+t1
+(t1[1,1]+t1[2,2])/nrow(train)
+t2 = table(train$violator,predictions1 > 0.5)
+t2
+(t2[1,1]+t2[2,2])/nrow(train)
+t3 = table(train$violator,predictions1 > 0.6)
+t3
+(t3[1,1]+t3[2,2])/nrow(train)
+
+# Task 10
+predictions2 =  predict(parole_fit4, test, type="prob")[2]
+t4 = table(test$violator,predictions2 > 0.5)
+t4
+(t4[1,1]+t4[2,2])/nrow(test)
+```
+
+
+

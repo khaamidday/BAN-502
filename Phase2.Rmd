@@ -1,0 +1,138 @@
+ # BAN 502 - Course Project Phase 2
+ 
+ ## Khayrayyah Haamid-Day
+ 
+```{r include=FALSE}
+library(tidymodels)
+library(tidyverse)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+library(caret)
+library(vip)
+ames_student <- read_csv("ames_student.csv")
+```
+ 
+```{r}
+ames_new = ames_student %>% select(Above_Median,Lot_Area,Neighborhood,Garage_Type,House_Style,Fireplace_Qu,Year_Remod_Add,Overall_Qual,Year_Built,Overall_Cond,BsmtFin_Type_1,Full_Bath,Exter_Qual,Foundation,Bsmt_Qual,Total_Bsmt_SF,Mo_Sold,Kitchen_Qual) %>%
+  mutate_if(is.character, as.factor) %>%
+  mutate(Above_Median = fct_recode(Above_Median, "No" = "0", "Yes" = "1"))
+
+summary(ames_new)
+```
+ 
+```{r}
+set.seed(1234) 
+ames_split = initial_split(ames_new, prop = 0.7, strata = Above_Median) #70% in training
+train = training(ames_split)
+test = testing(ames_split)
+```
+ 
+ 
+```{r}
+logistic_model = 
+  logistic_reg() %>% 
+  set_engine("glm") 
+
+logistic_recipe = recipe(Above_Median ~., train) %>%
+  step_dummy(all_nominal(), -all_outcomes())  
+
+logreg_wf = workflow() %>%
+  add_recipe(logistic_recipe) %>% 
+  add_model(logistic_model)
+
+logistic_fit = fit(logreg_wf, train)
+
+summary(logistic_fit$fit$fit$fit)
+```
+Significant - Lot_Area (positive), Full_Bath (positive), Total_Bsmt_SF (positive),Detached Garage (negative)
+Some Significance - Garage_Type_BuiltIn (positive) Kitchen_Qual_Fair (negative), Foundation_PConc (positve), BsmtFin_Type_1_Unf (negative), Overall_Cond_Good (positive), Overall_Qual_Very_Good (positive), Overall_Qual_Good (positive), Overall_Qual_Average (negative), House_Style_Two_Story (positive), House_Style_One_Story (negative)
+
+```{r}
+#Second Log Model
+logistic_model = 
+  logistic_reg() %>% 
+  set_engine("glm") 
+
+logistic_recipe = recipe(Above_Median ~ Lot_Area + Full_Bath + Total_Bsmt_SF + Garage_Type + BsmtFin_Type_1 + Overall_Qual + Overall_Cond + Foundation, train) %>%
+  step_dummy(all_nominal(), -all_outcomes())   
+
+logreg_wf = workflow() %>%
+  add_recipe(logistic_recipe) %>% 
+  add_model(logistic_model)
+
+logistic_fit2 = fit(logreg_wf, train)
+
+summary(logistic_fit2$fit$fit$fit)
+```
+Compared to the first model; positives and negatives remain fairly consistant but there are more variables that are significant that were not in previous model.
+
+```{r}
+classif_recipe = recipe(Above_Median  ~., train)
+
+tree_model = decision_tree() %>% 
+  step_dummy(all_nominal(), -all_outcomes()) %>%
+  set_engine("rpart", model = TRUE) %>% #don't forget the model = TRUE flag
+  set_mode("classification")
+
+classif_wflow = 
+  workflow() %>% 
+  add_model(tree_model) %>% 
+  add_recipe(classif_recipe)
+
+classif_fit = fit(classif_wflow, train)
+
+tree = classif_fit %>% 
+  extract_fit_parsnip() %>% 
+  pluck("fit")
+
+fancyRpartPlot(tree)
+```
+
+```{r}
+classif_fit$fit$fit$fit$cptable
+
+treepred = predict(classif_fit, train, type = "class")
+head(treepred)
+
+confusionMatrix(treepred$.pred_class,train$Above_Median,positive="Yes")
+
+treepred_test = predict(classif_fit, test, type = "class")
+head(treepred_test)
+
+confusionMatrix(treepred_test$.pred_class,test$Above_Median,positive="Yes")
+```
+
+```{r}
+random_recipe = recipe(Above_Median ~., train) %>%
+  step_dummy(all_nominal(), -all_outcomes())
+
+rf_model = rand_forest() %>% 
+  set_engine("ranger", importance = "permutation") %>% 
+  set_mode("classification")
+
+random_wkflw = 
+  workflow() %>% 
+  add_model(rf_model) %>% 
+  add_recipe(random_recipe)
+
+random_fit = fit(random_wkflw, train)
+```
+
+```{r}
+predRF = predict(random_fit, train)
+head(predRF)
+
+confusionMatrix(predRF$.pred_class, train$Above_Median, positive = "Yes")
+
+testpredrf = predict(random_fit, test)
+head(testpredrf)
+
+confusionMatrix(testpredrf$.pred_class, test$Above_Median, positive = "Yes")
+```
+
+```{r}
+random_fit %>% pull_workflow_fit() %>% vip(geom = "point")
+```
+
+

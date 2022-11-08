@@ -1,0 +1,185 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+# BAN 502 - Course Project Phase 1
+
+## Khayrayyah Haamid-Day
+
+```{r include=FALSE}
+library(tidymodels)
+library(tidyverse)
+library(mice)
+library(VIM) 
+library(naniar) 
+library(skimr)
+library(UpSetR)
+library(GGally)
+library(lares)
+library(gridExtra)
+library(esquisse)
+ames_student <- read_csv("ames_student.csv")
+#summary(ames_student)
+#str(ames_student)
+```
+```{r} 
+ames_student = ames_student %>% mutate_if(is.character, as.factor) %>%
+  mutate(Above_Median = fct_recode(Above_Median, "0" = "No", "1" = "Yes"))
+#summary(ames_student)
+```
+
+I picked variables that I believe, after researching this, have the most influence on the pricing of a home. If I am buying a home, I would have a list of must haves, such as only wanting to live in a particular neighborhood with a large yard. I would also be open to paying extra for a finished basement and 2 full baths even if it was not on my list, especially if it is high quality. There were a few other variables that I added, such as month sold, after testing them out on esquisse while there a couple of variables I initially picked decided not to include in the PowerPoint as I do not believe there is much of a relationship.
+
+```{r message=FALSE, warning=FALSE}
+#esquisser()
+
+ggplot(ames_student) +
+  aes(x = Lot_Area, fill = Above_Median) +
+  geom_histogram(bins = 10L) +
+  scale_fill_hue(direction = 1) +
+  theme_minimal() +
+  xlim(0, 30000)
+
+ggplot(ames_student) +
+  aes(x = Neighborhood, fill = Above_Median) +
+  geom_bar() +
+  scale_fill_hue(direction = 1) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+ggplot(ames_student) +
+  aes(x = Bldg_Type, fill = Above_Median) +
+  geom_bar() +
+  scale_fill_hue(direction = 1) +
+  theme_minimal()
+
+ggplot(ames_student) +
+  aes(x = House_Style, fill = Above_Median) +
+  geom_bar() +
+  scale_fill_hue(direction = 1) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+ggplot(ames_student) +
+  aes(x = Garage_Type, fill = Above_Median) +
+  geom_bar() +
+  scale_fill_hue(direction = 1) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+ggplot(ames_student) +
+  aes(x = Fireplace_Qu, fill = Above_Median) +
+  geom_bar() +
+  scale_fill_hue(direction = 1) +
+  theme_minimal()
+```
+
+Lot Area - Is skewed to the left, though there isn't much data for larger lot sizes, appears that the more sqfeet increases median price
+Neighborhood - Neighborhoods appear to impact if a house will be Above Median
+Bldg Type - Does not appear to be much of a relationship
+House Style - Stronger relationship with two-story homes being above median
+Garage Type - Attached and built-in garages could be above median in comparison to no garage and detached
+Fireplace Quality - Looks normally distributed; having no fireplace decrease the house price while a good and typical quality increases price above median
+
+```{r message=FALSE, warning=FALSE}
+ggplot(ames_student) +
+  aes(x = Overall_Qual, fill = Above_Median) +
+  geom_bar() +
+  scale_fill_hue(direction = 1) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+ggplot(ames_student) +
+  aes(x = Overall_Cond, fill = Above_Median) +
+  geom_bar() +
+  scale_fill_hue(direction = 1) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))
+
+ggplot(ames_student) +
+  aes(x = Year_Built, fill = Above_Median) +
+  geom_histogram(bins = 30L) +
+  scale_fill_hue(direction = 1) +
+  theme_minimal() +
+  xlim(1920, 2010)
+
+ggplot(ames_student) +
+  aes(x = Year_Remod_Add, fill = Above_Median) +
+  geom_histogram(bins = 30L) +
+  scale_fill_hue(direction = 1) +
+  theme_minimal() +
+  xlim(1950, 2010)
+
+ggplot(ames_student) +
+  aes(x = BsmtFin_Type_1, fill = Above_Median) +
+  geom_bar() +
+  scale_fill_hue(direction = 1) +
+  theme_minimal()
+
+ggplot(ames_student) +
+  aes(x = Full_Bath, fill = Above_Median) +
+  geom_histogram(bins = 30L) +
+  scale_fill_hue(direction = 1) +
+  theme_minimal()
+```
+
+Overall quality - overall quality of material used in home affects price of house being above/below median
+Overall condition - overall condition of the home may not have enough data; an average home is above median but it is odd that a above average house does not increase above median
+Year built - Skewed to the right; houses built after 1980/1990 have a above median price
+Year Remodeled - Skewed to the right; similar to year built, after 1980/1990 homes have a above median price
+Basement Finished - the rating of a finished basement at good living quarters have above median prices
+Full bath - there may not be many homes that have 2+ full baths; having 2 full baths drastically increases the price
+
+```{r message=FALSE, warning=FALSE}
+ggplot(ames_student) +
+  aes(x = Exter_Qual, fill = Above_Median) +
+  geom_bar() +
+  scale_fill_hue(direction = 1) +
+  theme_minimal()
+
+ggplot(ames_student) +
+  aes(x = Exter_Cond, fill = Above_Median) +
+  geom_bar() +
+  scale_fill_hue(direction = 1) +
+  theme_minimal()
+
+ggplot(ames_student) +
+  aes(x = Foundation, fill = Above_Median) +
+  geom_bar() +
+  scale_fill_hue(direction = 1) +
+  theme_minimal()
+
+ggplot(ames_student) +
+  aes(x = Bsmt_Qual, fill = Above_Median) +
+  geom_bar() +
+  scale_fill_hue(direction = 1) +
+  theme_minimal()
+
+ggplot(ames_student) +
+  aes(x = "", y = Total_Bsmt_SF, fill = Above_Median) +
+  geom_boxplot() +
+  scale_fill_hue(direction = 1) +
+  theme_minimal()
+
+ggplot(ames_student) +
+  aes(x = Mo_Sold, fill = Above_Median) +
+  geom_histogram(bins = 30L) +
+  scale_fill_hue(direction = 1) +
+  theme_minimal()
+
+ggplot(ames_student) +
+  aes(x = Kitchen_Qual, fill = Above_Median) +
+  geom_bar() +
+  scale_fill_hue(direction = 1) +
+  theme_minimal()
+```
+
+Exterior quality - skewed to right; good and excellent exterior quality of material increases the price above median
+Exterior cond - condition of exterior may not have a lot data, does not appear to have a strong relationship
+Foundation - skewed to left; only having a poured concrete increased above median which cinder block, brick and tile, and slab decrease 
+Basement Qual - basement quality of good and excellent increase price above median
+Total basement sf - more square feet in the basement appears to impact above median
+Month sold - normally distributed; there is a relationship between month sold and above median
+Kitchen quality - kitchen quality being good and excellent increase price above median
+
